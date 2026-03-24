@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { walkCodeFiles, walkDir, readFileSafe, getRelativePath } = require('../utility/file-utils');
 
-function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, codeExtensions, maxValueLines, maxMethodLines) {
+function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, codeExtensions, maxValueLines, maxMethodLines, maxClassLines) {
     const violations = {
         htmlInCode: [],
         codeFilesExceedingLimit: [],
@@ -208,7 +208,9 @@ function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, code
                                 const method = methodStack[m];
                                 methodStack.splice(m, 1);
                                 const cnt = i - method.startLine + 1;
-                                if (cnt > maxMethodLines) {
+                                // Use maxClassLines for root-level methods, maxMethodLines for nested
+                                const maxLinesForMethod = method.scope === 'root' ? maxClassLines : maxMethodLines;
+                                if (cnt > maxLinesForMethod) {
                                     violations.longMethods.push({ file: relPath, name: method.name, start: method.startLine + 1, lines: cnt, scope: method.scope });
                                     stats.methodsExceedingLimit++;
                                 }
@@ -239,7 +241,9 @@ function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, code
         // Незакрытые методы в конце файла
         for (const method of methodStack) {
             const cnt = lines.length - method.startLine;
-            if (cnt > maxMethodLines) {
+            // Use maxClassLines for root-level methods, maxMethodLines for nested
+            const maxLinesForMethod = method.scope === 'root' ? maxClassLines : maxMethodLines;
+            if (cnt > maxLinesForMethod) {
                 violations.longMethods.push({ file: relPath, name: method.name, start: method.startLine + 1, lines: cnt, scope: method.scope });
                 stats.methodsExceedingLimit++;
             }

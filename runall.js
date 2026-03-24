@@ -48,7 +48,7 @@ for (const [validatorName, enabled] of Object.entries(config.VALIDATORS)) {
     } else if (validatorName === 'check-dependencies') {
         result = validator.validate(targetDir, config.IGNORE_FOLDERS);
     } else if (validatorName === 'check-lines') {
-        result = validator.validate(targetDir, config.MAX_LINES, config.EXCLUDE_DIRS, config.EXCLUDE_FILES, config.HTML_TAGS, config.CODE_EXTENSIONS, config.MAX_VALUE_LINES, config.MAX_METHOD_LINES);
+        result = validator.validate(targetDir, config.MAX_LINES, config.EXCLUDE_DIRS, config.EXCLUDE_FILES, config.HTML_TAGS, config.CODE_EXTENSIONS, config.MAX_VALUE_LINES, config.MAX_METHOD_LINES, config.MAX_CLASS_LINES);
     }
 
     result.name = validatorName;
