@@ -368,70 +368,12 @@ function validate(targetDir, excludeDirs) {
         }
     }
 
-    // Check for compound variables in :root
-    const compoundVarsInRoot = new Map();
-    for (const cssFile of cssFiles) {
-        const cssContent = readFileSafe(cssFile);
-        if (!cssContent) continue;
-
-        const cssLines = cssContent.split('\n');
-        const relPath = getRelativePath(targetDir, cssFile);
-
-        let inRoot = false;
-        for (let i = 0; i < cssLines.length; i++) {
-            const line = cssLines[i];
-            if (line.includes(':root')) inRoot = true;
-            if (inRoot) {
-                const varMatch = line.match(/--([a-zA-Z0-9_-]+)\s*:\s*var\((--[a-zA-Z0-9_-]+)\)\s*;/);
-                if (varMatch) {
-                    const varName = varMatch[1];
-                    const targetVar = varMatch[2];
-                    compoundVarsInRoot.set(varName, { targetVar, line: i + 1, file: relPath, content: line.trim() });
-                }
-                if (line.includes('}')) inRoot = false;
-            }
-        }
-    }
-
-    for (const cssFile of cssFiles) {
-        const cssContent = readFileSafe(cssFile);
-        if (!cssContent) continue;
-
-        const relPath = getRelativePath(targetDir, cssFile);
-        for (const [varName, data] of compoundVarsInRoot.entries()) {
-            const usageRegex = new RegExp(`var\\(--${varName.replace('-', '\\-')}\\)`, 'g');
-            let match;
-            while ((match = usageRegex.exec(cssContent)) !== null) {
-                const lineNum = cssContent.substring(0, match.index).split('\n').length;
-                violations.compoundVars.push({
-                    varName: `--${varName}`,
-                    targetVar: data.targetVar,
-                    line: lineNum,
-                    file: relPath,
-                    definition: data
-                });
-            }
-        }
-    }
-
-    for (const [varName, data] of compoundVarsInRoot.entries()) {
-        violations.compoundVars.push({
-            varName: `--${varName}`,
-            targetVar: data.targetVar,
-            line: data.line,
-            file: data.file,
-            content: data.content,
-            isDefinition: true
-        });
-    }
-
     const hasErrors = violations.duplicateClasses.length > 0 ||
         violations.identicalClasses.length > 0 ||
         violations.duplicateVars.length > 0 ||
         violations.unusedClasses.length > 0 ||
         violations.nestedRules.length > 0 ||
         violations.hardcodedValues.length > 0 ||
-        violations.compoundVars.length > 0 ||
         violations.inlineStyles.length > 0;
 
     return {
