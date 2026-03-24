@@ -108,8 +108,7 @@ Configure via `config.json`:
     "TARGET_PATH": ".",
     "SAVE_REPORT": true,
     "REPORT_FILE": "data/code-quality-report.json",
-    "IGNORE_FOLDERS": ["node_modules", ".git", "tasks", "utility", "data"],
-    "EXCLUDE_DIRS": ["node_modules", "public", "dist", "build"],
+    "EXCLUDE_DIRS": ["node_modules", ".git", "tasks", "utility", "data"],
     "EXCLUDE_FILES": ["runall.js", "eslint.config.js"],
     "HTML_TAGS": ["html", "head", "body", "div", "span", "p", "img"],
     "CODE_EXTENSIONS": [".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".cs", ".go"],
@@ -133,8 +132,7 @@ Configure via `config.json`:
 | `TARGET_PATH` | Directory to validate | `.` |
 | `SAVE_REPORT` | Save validation report to file | `true` |
 | `REPORT_FILE` | Path to save the report | `data/code-quality-report.json` |
-| `IGNORE_FOLDERS` | Folders to skip during scanning | `["node_modules", ".git", ...]` |
-| `EXCLUDE_DIRS` | Directories excluded from validation | `["node_modules", "dist", ...]` |
+| `EXCLUDE_DIRS` | Directories excluded from validation | `["node_modules", ".git", ...]` |
 | `EXCLUDE_FILES` | Files excluded from validation | `["runall.js", ...]` |
 | `HTML_TAGS` | HTML tags to detect in code files | Common HTML tags |
 | `CODE_EXTENSIONS` | File extensions to validate | `[".js", ".ts", ".py", ...]` |

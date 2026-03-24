@@ -5,10 +5,10 @@ const { scanDirectory, readFileSafe, readJsonFile, getRelativePath } = require('
 /**
  * Validates dependencies in package.json files.
  * @param {string} targetDir - Target directory to validate
- * @param {string[]} ignoreFolders - Folders to ignore
+ * @param {string[]} excludeDirs - Directories to exclude
  * @returns {{passed: boolean, violations: Array, stats: Object}}
  */
-function validate(targetDir, ignoreFolders) {
+function validate(targetDir, excludeDirs) {
     const violations = [];
     const stats = {
         packageJsonFilesChecked: 0,
@@ -16,7 +16,7 @@ function validate(targetDir, ignoreFolders) {
         totalDevDependencies: 0
     };
 
-    const { packageJsonFiles } = scanDirectory(targetDir, ignoreFolders);
+    const { packageJsonFiles } = scanDirectory(targetDir, excludeDirs);
 
     stats.packageJsonFilesChecked = packageJsonFiles.length;
 

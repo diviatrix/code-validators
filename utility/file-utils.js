@@ -16,14 +16,28 @@ function scanDirectory(dir, ignoreFolders = []) {
         htmlFiles: []
     };
 
+    function shouldIgnoreDir(dirPath, ignoreFolders) {
+        for (const ignored of ignoreFolders) {
+            if (dirPath.includes(path.sep + ignored + path.sep) || 
+                dirPath.includes(path.sep + ignored) ||
+                dirPath.endsWith(path.sep + ignored)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function scan(currentDir) {
+        // Check if current directory should be ignored
+        if (shouldIgnoreDir(currentDir, ignoreFolders)) {
+            return;
+        }
+
         const entries = fs.readdirSync(currentDir, { withFileTypes: true });
         for (const entry of entries) {
             const fullPath = path.join(currentDir, entry.name);
             if (entry.isDirectory()) {
-                if (!ignoreFolders.includes(entry.name)) {
-                    scan(fullPath);
-                }
+                scan(fullPath);
             } else if (entry.isFile()) {
                 result.allFiles.push(fullPath);
                 if (entry.name.endsWith('.css')) {
@@ -56,7 +70,18 @@ function walkDir(dir, ext, excludeDirs = [], excludeFiles = []) {
 
     if (!fs.existsSync(dir)) return files;
 
-    function shouldExclude(filePath) {
+    function shouldExcludeDir(dirPath) {
+        for (const d of excludeDirs) {
+            if (dirPath.includes(path.sep + d + path.sep) || 
+                dirPath.includes(path.sep + d) ||
+                dirPath.endsWith(path.sep + d)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function shouldExcludeFile(filePath) {
         for (const d of excludeDirs) {
             if (filePath.includes(path.sep + d + path.sep) || filePath.endsWith(path.sep + d)) {
                 return true;
@@ -71,15 +96,18 @@ function walkDir(dir, ext, excludeDirs = [], excludeFiles = []) {
     }
 
     function walk(currentDir) {
+        // Check if current directory should be excluded
+        if (shouldExcludeDir(currentDir)) {
+            return;
+        }
+
         const entries = fs.readdirSync(currentDir, { withFileTypes: true });
         for (const entry of entries) {
             const fullPath = path.join(currentDir, entry.name);
             if (entry.isDirectory()) {
-                if (!excludeDirs.includes(entry.name)) {
-                    walk(fullPath);
-                }
+                walk(fullPath);
             } else if (entry.isFile() && entry.name.endsWith(ext)) {
-                if (!shouldExclude(fullPath)) {
+                if (!shouldExcludeFile(fullPath)) {
                     files.push(fullPath);
                 }
             }

@@ -5,10 +5,10 @@ const { scanDirectory, readFileSafe, getRelativePath } = require('../utility/fil
 /**
  * Validates CSS files for various issues.
  * @param {string} targetDir - Target directory to validate
- * @param {string[]} ignoreFolders - Folders to ignore
+ * @param {string[]} excludeDirs - Directories to exclude
  * @returns {{passed: boolean, violations: Object, stats: Object}}
  */
-function validate(targetDir, ignoreFolders) {
+function validate(targetDir, excludeDirs) {
     const violations = {
         duplicateClasses: [],
         identicalClasses: [],
@@ -28,7 +28,7 @@ function validate(targetDir, ignoreFolders) {
         rootVarsCount: 0
     };
 
-    const { cssFiles, codeFiles } = scanDirectory(targetDir, ignoreFolders);
+    const { cssFiles, codeFiles } = scanDirectory(targetDir, excludeDirs);
 
     stats.cssFilesScanned = cssFiles.length;
     stats.codeFilesScanned = codeFiles.length;

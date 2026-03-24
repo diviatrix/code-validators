@@ -44,9 +44,9 @@ for (const [validatorName, enabled] of Object.entries(config.VALIDATORS)) {
     if (validatorName === 'check-classes') {
         result = validator.validate(targetDir, config.MAX_CLASS_LINES, config.CODE_EXTENSIONS);
     } else if (validatorName === 'check-css') {
-        result = validator.validate(targetDir, config.IGNORE_FOLDERS);
+        result = validator.validate(targetDir, config.EXCLUDE_DIRS);
     } else if (validatorName === 'check-dependencies') {
-        result = validator.validate(targetDir, config.IGNORE_FOLDERS);
+        result = validator.validate(targetDir, config.EXCLUDE_DIRS);
     } else if (validatorName === 'check-lines') {
         result = validator.validate(targetDir, config.MAX_LINES, config.EXCLUDE_DIRS, config.EXCLUDE_FILES, config.HTML_TAGS, config.CODE_EXTENSIONS, config.MAX_VALUE_LINES, config.MAX_METHOD_LINES, config.MAX_CLASS_LINES);
     }
