@@ -397,6 +397,7 @@ function validate(targetDir, excludeDirs) {
         const cssContent = readFileSafe(cssFile);
         if (!cssContent) continue;
 
+        const relPath = getRelativePath(targetDir, cssFile);
         for (const [varName, data] of compoundVarsInRoot.entries()) {
             const usageRegex = new RegExp(`var\\(--${varName.replace('-', '\\-')}\\)`, 'g');
             let match;
