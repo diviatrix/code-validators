@@ -17,10 +17,10 @@ function scanDirectory(dir, ignoreFolders = []) {
     };
 
     function shouldIgnoreDir(dirPath, ignoreFolders) {
+        const normalizedPath = dirPath.replace(/\\/g, '/');
+        const pathParts = normalizedPath.split('/');
         for (const ignored of ignoreFolders) {
-            if (dirPath.includes(path.sep + ignored + path.sep) || 
-                dirPath.includes(path.sep + ignored) ||
-                dirPath.endsWith(path.sep + ignored)) {
+            if (pathParts.includes(ignored)) {
                 return true;
             }
         }
@@ -71,10 +71,10 @@ function walkDir(dir, ext, excludeDirs = [], excludeFiles = []) {
     if (!fs.existsSync(dir)) return files;
 
     function shouldExcludeDir(dirPath) {
+        const normalizedPath = dirPath.replace(/\\/g, '/');
+        const pathParts = normalizedPath.split('/');
         for (const d of excludeDirs) {
-            if (dirPath.includes(path.sep + d + path.sep) || 
-                dirPath.includes(path.sep + d) ||
-                dirPath.endsWith(path.sep + d)) {
+            if (pathParts.includes(d)) {
                 return true;
             }
         }
@@ -82,8 +82,10 @@ function walkDir(dir, ext, excludeDirs = [], excludeFiles = []) {
     }
 
     function shouldExcludeFile(filePath) {
+        const normalizedPath = filePath.replace(/\\/g, '/');
+        const pathParts = normalizedPath.split('/');
         for (const d of excludeDirs) {
-            if (filePath.includes(path.sep + d + path.sep) || filePath.endsWith(path.sep + d)) {
+            if (pathParts.includes(d)) {
                 return true;
             }
         }
