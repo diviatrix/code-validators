@@ -42,7 +42,7 @@ for (const [validatorName, enabled] of Object.entries(config.VALIDATORS)) {
 
     // Run validator with appropriate config
     if (validatorName === 'check-classes') {
-        result = validator.validate(targetDir, config.MAX_CLASS_LINES, config.CODE_EXTENSIONS);
+        result = validator.validate(targetDir, config.MAX_CLASS_LINES, config.CODE_EXTENSIONS, config.EXCLUDE_DIRS, config.EXCLUDE_FILES);
     } else if (validatorName === 'check-css') {
         result = validator.validate(targetDir, config.EXCLUDE_DIRS);
     } else if (validatorName === 'check-dependencies') {

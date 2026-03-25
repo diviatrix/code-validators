@@ -201,10 +201,14 @@ function validate(targetDir, excludeDirs) {
             classesUsed.add(match[1]);
         }
 
-        // Check for helper functions like createEl('div', 'filter-group')
-        const createElMatches = content.matchAll(/(?:createEl|createElement|_el|_c|h)\s*\(\s*['"][^'"]+['"]\s*,\s*['"]([a-zA-Z_-][a-zA-Z0-9_-]*)['"]/g);
+        // Check for helper functions like createEl('div', 'filter-group') or createEl('button', 'spoiler-btn filter-more-btn')
+        const createElMatches = content.matchAll(/(?:createEl|createElement|_el|_c|h)\s*\(\s*['"][^'"]+['"]\s*,\s*['"]([^'"]+)['"]/g);
         for (const match of createElMatches) {
-            classesUsed.add(match[1]);
+            const classStr = match[1];
+            const classes = classStr.split(/\s+/).filter(c => c.trim());
+            for (const cls of classes) {
+                classesUsed.add(cls);
+            }
         }
 
         // Check for inline styles

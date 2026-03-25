@@ -91,7 +91,7 @@ function formatViolations(violations, validatorName) {
 
     const lines = [];
 
-    // Handle array violations (dependencies)
+    // Handle array violations (dependencies, classes)
     if (Array.isArray(violations)) {
         for (const v of violations) {
             if (v.file && v.errors) {
@@ -99,6 +99,10 @@ function formatViolations(violations, validatorName) {
                 for (const error of v.errors) {
                     lines.push(`    - ${error}`);
                 }
+            } else if (v.class && v.lines) {
+                // check-classes violations
+                const line = formatViolationItem(v, 'classesExceedingLimit');
+                if (line) lines.push(`    ${line}`);
             } else if (v.message) {
                 lines.push(`  ${v.message}`);
             }
@@ -138,6 +142,7 @@ function formatViolationKey(key) {
         compoundVars: 'Compound parameters in :root',
         inlineStyles: 'Inline styles in code',
         htmlInCode: 'HTML in code files',
+        classesExceedingLimit: 'Classes exceeding line limit',
         codeFilesExceedingLimit: 'Code files exceeding line limit',
         htmlFilesExceedingLimit: 'HTML files exceeding line limit'
     };
@@ -176,6 +181,8 @@ function formatViolationItem(v, key) {
             return `${v.file}: ${v.lines} lines`;
         case 'htmlInCode':
             return `${v.file}: ${v.issues.map(i => `line ${i.line}: ${i.tags.join(', ')}`).join('; ')}`;
+        case 'classesExceedingLimit':
+            return `${v.class} in ${v.file}: ${v.lines} lines (starts at line ${v.start})`;
         default:
             if (v.file) {
                 return `${v.file}: ${JSON.stringify(v)}`;

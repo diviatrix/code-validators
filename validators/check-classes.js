@@ -6,15 +6,20 @@ const { walkCodeFiles, readFileSafe } = require('../utility/file-utils');
  * @param {string} targetDir - Target directory to validate
  * @param {number} maxClassLines - Maximum allowed lines per class
  * @param {string[]} codeExtensions - File extensions to check
+ * @param {string[]} excludeDirs - Directories to exclude
+ * @param {string[]} excludeFiles - Files to exclude
  * @returns {{passed: boolean, violations: Array, stats: Object}}
  */
-function validate(targetDir, maxClassLines, codeExtensions) {
+function validate(targetDir, maxClassLines, codeExtensions, excludeDirs = [], excludeFiles = []) {
     const violations = [];
     const stats = {
         filesChecked: 0,
         classesFound: 0,
         classesExceedingLimit: 0
     };
+
+    const codeFiles = walkCodeFiles(targetDir, codeExtensions, excludeDirs, excludeFiles);
+    stats.filesChecked = codeFiles.length;
 
     function checkFile(filePath) {
         const content = readFileSafe(filePath);
@@ -103,9 +108,6 @@ function validate(targetDir, maxClassLines, codeExtensions) {
             }
         }
     }
-
-    const codeFiles = walkCodeFiles(targetDir, codeExtensions);
-    stats.filesChecked = codeFiles.length;
 
     for (const file of codeFiles) {
         checkFile(file);
