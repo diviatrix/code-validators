@@ -1,0 +1,19 @@
+{
+    "TARGET_PATH": ".",
+    "SAVE_REPORT": true,
+    "REPORT_FILE": "data/code-quality-report.json",
+    "EXCLUDE_DIRS": ["node_modules", ".git", "tasks", "data", "dist", "build","code-validators", "validators"],
+    "EXCLUDE_FILES": ["runall.js", "eslint.config.js", ".eslintrc.js"],
+    "HTML_TAGS": ["html", "head", "body", "div", "span", "p", "a ", "img", "table", "tr", "td", "th", "ul", "li", "form", "input", "button", "script", "style", "link", "meta", "header", "nav", "footer", "main", "section", "article"],
+    "CODE_EXTENSIONS": [".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".cpp", ".cc", ".cxx", ".c", ".hpp", ".h", ".cs", ".go", ".rs"],
+    "MAX_LINES": 300,
+    "MAX_CLASS_LINES": 250,
+    "MAX_VALUE_LINES": 15,
+    "MAX_METHOD_LINES": 25,
+    "VALIDATORS": {
+        "check-lines": true,
+        "check-classes": true,
+        "check-css": true,
+        "check-dependencies": false
+    }
+}
