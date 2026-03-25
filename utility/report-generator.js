@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 
 /**
  * Generates a validation report from validator results.
@@ -23,7 +24,8 @@ function generateReport(targetPath, results) {
             passed: r.passed,
             duration: r.duration,
             stats: r.stats,
-            violationCount: countViolations(r.violations)
+            violationCount: countViolations(r.violations),
+            violations: r.violations
         }))
     };
 }
@@ -53,6 +55,10 @@ function countViolations(violations) {
  * @param {string} filePath - File path to save
  */
 function saveReport(report, filePath) {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
     fs.writeFileSync(filePath, JSON.stringify(report, null, 2));
 }
 

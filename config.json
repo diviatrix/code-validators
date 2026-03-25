@@ -1,5 +1,5 @@
 {
-    "TARGET_PATH": ".",
+    "TARGET_PATH": "/home/zero/repo/rathena-editor/database/server",
     "SAVE_REPORT": true,
     "REPORT_FILE": "data/code-quality-report.json",
     "EXCLUDE_DIRS": ["node_modules", ".git", "tasks", "data", "dist", "build","code-validators", "validators"],
