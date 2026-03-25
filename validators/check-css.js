@@ -201,6 +201,12 @@ function validate(targetDir, excludeDirs) {
             classesUsed.add(match[1]);
         }
 
+        // Check for helper functions like createEl('div', 'filter-group')
+        const createElMatches = content.matchAll(/(?:createEl|createElement|_el|_c|h)\s*\(\s*['"][^'"]+['"]\s*,\s*['"]([a-zA-Z_-][a-zA-Z0-9_-]*)['"]/g);
+        for (const match of createElMatches) {
+            classesUsed.add(match[1]);
+        }
+
         // Check for inline styles
         const inlineStyleMatches = content.matchAll(/style=["'][^"']*["']/g);
         for (const match of inlineStyleMatches) {
