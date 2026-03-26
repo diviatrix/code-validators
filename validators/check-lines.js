@@ -62,23 +62,66 @@ function validate(codeFiles, htmlFiles, maxLines, htmlTags, maxValueLines, maxMe
         return cyrillic.test(str) || latin.test(str);
     }
 
+    function isTextContentContext(line, strContent) {
+        const lowerLine = line.toLowerCase();
+        
+        // Skip technical strings: paths, URLs, selectors, variable names
+        if (strContent.match(/^[\/\.~]/) || // paths
+            strContent.match(/^https?:\/\//) || // URLs
+            strContent.match(/^[\w\-]+\.[\w\-]+/) || // domain-like
+            strContent.match(/^[a-zA-Z_$][a-zA-Z0-9_$]*$/) || // variable names
+            strContent.match(/^[A-Z_][A-Z0-9_]*$/) || // constants
+            strContent.match(/^\$|^#|^@/) || // special chars
+            strContent.includes('/') || // path separators
+            strContent.includes('\\') || // Windows paths
+            strContent.includes('.') && strContent.split('.').length > 2) { // dotted paths
+            return false;
+        }
+
+        // Skip CSS class names and IDs (technical identifiers, not user text)
+        if (lowerLine.includes('class=')) {
+            return false;
+        }
+        if (lowerLine.includes('id=') && !lowerLine.includes('aria-')) {
+            return false;
+        }
+
+        // Check if string looks like natural language text
+        const hasTextPattern = /[а-яёa-z]{3,}/i.test(strContent) && 
+                               !/^[0-9\-_]+$/.test(strContent);
+        
+        // Check for UI text patterns (actual user-facing text)
+        const uiTextPatterns = [/>[^<]*['"]/, /title=['"]/, /label=['"]/, /placeholder=['"]/, 
+                                /alt=['"]/, /\btext\b/i, /\bname=['"]/i];
+        const hasUiTextContext = uiTextPatterns.some(p => p.test(line));
+
+        // Check for HTML tag content context (text between tags)
+        const tagContentMatch = line.match(/>[^<]*(['"][^'"]+['"])[^<]*</);
+        const hasTagTextContext = tagContentMatch !== null;
+
+        // Return true if it's text content in HTML/text context
+        return hasTextPattern && (hasUiTextContext || hasTagTextContext);
+    }
+
     function findHardcodedStrings(file) {
         const issues = [];
         const lines = file.content.split('\n');
         const stringRegex = /(['"`])(?:(?!\1|\\).)*\1/g;
-        const funcCallRegex = /([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(\s*(['"`])(?:(?!\2|\\).)*\2\s*\)/g;
-        
+
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             const trimmed = line.trim();
-            
+
             if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
-            
+
             let match;
             const tempRegex = new RegExp(stringRegex.source, 'g');
             while ((match = tempRegex.exec(line)) !== null) {
                 const strContent = match[0].slice(1, -1);
-                if (isHardcodedString(strContent) && !strContent.includes('${') && !strContent.includes('{{')) {
+                if (isHardcodedString(strContent) && 
+                    !strContent.includes('${') && 
+                    !strContent.includes('{{') &&
+                    isTextContentContext(line, strContent)) {
                     issues.push({
                         line: i + 1,
                         content: trimmed.substring(0, 100),
