@@ -90,7 +90,8 @@ function formatViolationKey(key) {
         htmlInCode: 'HTML in code files',
         classesExceedingLimit: 'Classes exceeding line limit',
         codeFilesExceedingLimit: 'Code files exceeding line limit',
-        htmlFilesExceedingLimit: 'HTML files exceeding line limit'
+        htmlFilesExceedingLimit: 'HTML files exceeding line limit',
+        hardcodedStrings: 'Hardcoded strings in code'
     };
     return labels[key] || key;
 }
@@ -119,6 +120,8 @@ function formatViolationItem(v, key) {
             return `${v.file}: ${v.lines || v.content} lines`.replace(' lines lines', ' lines');
         case 'htmlInCode':
             return `${v.file}: ${v.issues.map(i => `line ${i.line}: ${i.tags.join(', ')}`).join('; ')}`;
+        case 'hardcodedStrings':
+            return `${v.file}: ${v.issues.map(i => `line ${i.line}: ${i.string}`).join(', ')}`;
         case 'classesExceedingLimit':
             return `${v.class} in ${v.file}: ${v.lines} lines (starts at line ${v.start})`;
         default:

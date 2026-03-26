@@ -1,10 +1,11 @@
-function validate(codeFiles, htmlFiles, maxLines, htmlTags, maxValueLines, maxMethodLines, maxClassLines) {
+function validate(codeFiles, htmlFiles, maxLines, htmlTags, maxValueLines, maxMethodLines, maxClassLines, localesPath) {
     const violations = {
         htmlInCode: [],
         codeFilesExceedingLimit: [],
         htmlFilesExceedingLimit: [],
         longVariables: [],
-        longMethods: []
+        longMethods: [],
+        hardcodedStrings: []
     };
 
     const stats = {
@@ -52,6 +53,41 @@ function validate(codeFiles, htmlFiles, maxLines, htmlTags, maxValueLines, maxMe
     function isComment(trimmed) {
         return trimmed.startsWith('//') || trimmed.startsWith('#') ||
             trimmed.startsWith('*') || trimmed.startsWith('/*');
+    }
+
+    function isHardcodedString(str) {
+        if (!str || str.length < 2) return false;
+        const cyrillic = /[а-яёА-ЯЁ]+/;
+        const latin = /[a-zA-Z]{4,}/;
+        return cyrillic.test(str) || latin.test(str);
+    }
+
+    function findHardcodedStrings(file) {
+        const issues = [];
+        const lines = file.content.split('\n');
+        const stringRegex = /(['"`])(?:(?!\1|\\).)*\1/g;
+        const funcCallRegex = /([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(\s*(['"`])(?:(?!\2|\\).)*\2\s*\)/g;
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+            
+            if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+            
+            let match;
+            const tempRegex = new RegExp(stringRegex.source, 'g');
+            while ((match = tempRegex.exec(line)) !== null) {
+                const strContent = match[0].slice(1, -1);
+                if (isHardcodedString(strContent) && !strContent.includes('${') && !strContent.includes('{{')) {
+                    issues.push({
+                        line: i + 1,
+                        content: trimmed.substring(0, 100),
+                        string: match[0].substring(0, 50)
+                    });
+                }
+            }
+        }
+        return issues;
     }
 
     function isVarDeclaration(trimmed, parenDepth) {
@@ -265,6 +301,11 @@ function validate(codeFiles, htmlFiles, maxLines, htmlTags, maxValueLines, maxMe
         if (maxValueLines && maxMethodLines) {
             checkVarsAndMethods(file);
         }
+
+        const stringIssues = findHardcodedStrings(file);
+        if (stringIssues.length > 0) {
+            violations.hardcodedStrings.push({ file: file.relativePath, issues: stringIssues });
+        }
     }
 
     for (const file of htmlFiles) {
@@ -281,7 +322,8 @@ function validate(codeFiles, htmlFiles, maxLines, htmlTags, maxValueLines, maxMe
         violations.codeFilesExceedingLimit.length > 0 ||
         violations.htmlFilesExceedingLimit.length > 0 ||
         violations.longVariables.length > 0 ||
-        violations.longMethods.length > 0;
+        violations.longMethods.length > 0 ||
+        violations.hardcodedStrings.length > 0;
 
     return {
         passed: !hasErrors,

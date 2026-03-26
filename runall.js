@@ -15,7 +15,7 @@ function runValidator(name, v, files, cfg) {
     if (name === 'check-classes') r = v.validate(files.codeFiles, cfg.MAX_CLASS_LINES);
     else if (name === 'check-css') r = v.validate(files.cssFiles, files.codeFiles);
     else if (name === 'check-dependencies') r = v.validate(files.packageJsonFiles);
-    else if (name === 'check-lines') r = v.validate(files.codeFiles, files.htmlFiles, cfg.MAX_LINES, cfg.HTML_TAGS, cfg.MAX_VALUE_LINES, cfg.MAX_METHOD_LINES, cfg.MAX_CLASS_LINES);
+    else if (name === 'check-lines') r = v.validate(files.codeFiles, files.htmlFiles, cfg.MAX_LINES, cfg.HTML_TAGS, cfg.MAX_VALUE_LINES, cfg.MAX_METHOD_LINES, cfg.MAX_CLASS_LINES, cfg.LOCALES_PATH);
     r.name = name;
     r.duration = Date.now() - start;
     return r;
