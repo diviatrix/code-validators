@@ -1,38 +1,28 @@
-const path = require('path');
-const { walkCodeFiles, readFileSafe } = require('../utility/file-utils');
-
 /**
  * Validates that classes do not exceed the maximum allowed lines.
- * @param {string} targetDir - Target directory to validate
+ * @param {Array<{path: string, relativePath: string, content: string, ext: string}>} codeFiles - Loaded code files
  * @param {number} maxClassLines - Maximum allowed lines per class
- * @param {string[]} codeExtensions - File extensions to check
- * @param {string[]} excludeDirs - Directories to exclude
- * @param {string[]} excludeFiles - Files to exclude
  * @returns {{passed: boolean, violations: Array, stats: Object}}
  */
-function validate(targetDir, maxClassLines, codeExtensions, excludeDirs = [], excludeFiles = []) {
+function validate(codeFiles, maxClassLines) {
     const violations = [];
     const stats = {
-        filesChecked: 0,
+        filesChecked: codeFiles.length,
         classesFound: 0,
         classesExceedingLimit: 0
     };
 
-    const codeFiles = walkCodeFiles(targetDir, codeExtensions, excludeDirs, excludeFiles);
-    stats.filesChecked = codeFiles.length;
-
-    function checkFile(filePath) {
-        const content = readFileSafe(filePath);
-        if (!content) return;
-
-        const lines = content.split('\n');
-        const ext = path.extname(filePath);
+    function checkFile(file) {
+        const content = file.content;
+        const ext = file.ext;
 
         let braceDepth = 0;
         let classStart = 0;
         let classLines = 0;
         let inClass = false;
         let currentClassName = '';
+
+        const lines = content.split('\n');
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
@@ -88,7 +78,7 @@ function validate(targetDir, maxClassLines, codeExtensions, excludeDirs = [], ex
                     if (inClass && braceDepth === 1) {
                         if (classLines > maxClassLines) {
                             violations.push({
-                                file: filePath,
+                                file: file.relativePath,
                                 class: currentClassName,
                                 start: classStart,
                                 lines: classLines

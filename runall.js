@@ -1,9 +1,7 @@
-const path = require('path');
 const config = require('./config');
-const { pathExists } = require('./utility/file-utils');
+const { pathExists, scanAndLoadDirectory } = require('./utility/file-utils');
 const { generateReport, saveReport, printResults } = require('./utility/report-generator');
 
-// Import all validators
 const validators = {
     'check-classes': require('./validators/check-classes'),
     'check-css': require('./validators/check-css'),
@@ -11,66 +9,40 @@ const validators = {
     'check-lines': require('./validators/check-lines')
 };
 
-// Get target directory from command line arguments or use config default
-const targetDir = process.argv[2] || config.TARGET_PATH || '';
-
-// Validate target directory
-if (!pathExists(targetDir)) {
-    console.log(`Error: Target path does not exist: ${targetDir}`);
-    process.exit(1);
+function runValidator(name, v, files, cfg) {
+    const start = Date.now();
+    let r;
+    if (name === 'check-classes') r = v.validate(files.codeFiles, cfg.MAX_CLASS_LINES);
+    else if (name === 'check-css') r = v.validate(files.cssFiles, files.codeFiles);
+    else if (name === 'check-dependencies') r = v.validate(files.packageJsonFiles);
+    else if (name === 'check-lines') r = v.validate(files.codeFiles, files.htmlFiles, cfg.MAX_LINES, cfg.HTML_TAGS, cfg.MAX_VALUE_LINES, cfg.MAX_METHOD_LINES, cfg.MAX_CLASS_LINES);
+    r.name = name;
+    r.duration = Date.now() - start;
+    return r;
 }
+
+const targetDir = process.argv[2] || config.TARGET_PATH || '';
+if (!pathExists(targetDir)) { console.log(`Error: Target path does not exist: ${targetDir}`); process.exit(1); }
 
 console.log('🔍 Running all validators...\n');
 console.log(`Target: ${targetDir}`);
 
-const results = [];
-let allPassed = true;
+const files = scanAndLoadDirectory(targetDir, config.EXCLUDE_DIRS);
+const results = Object.entries(config.VALIDATORS)
+    .filter(([, enabled]) => enabled)
+    .map(([name]) => {
+        const v = validators[name];
+        if (!v) { console.log(`⚠️  Unknown validator: ${name}`); return null; }
+        return runValidator(name, v, files, config);
+    })
+    .filter(r => r);
 
-// Run only validators enabled in config.VALIDATORS
-for (const [validatorName, enabled] of Object.entries(config.VALIDATORS)) {
-    if (!enabled) continue;
+results.forEach(r => { if (!r.passed) process.exitCode = 1; });
 
-    const validator = validators[validatorName];
-
-    if (!validator) {
-        console.log(`⚠️  Unknown validator: ${validatorName}`);
-        continue;
-    }
-
-    const startTime = Date.now();
-    let result;
-
-    // Run validator with appropriate config
-    if (validatorName === 'check-classes') {
-        result = validator.validate(targetDir, config.MAX_CLASS_LINES, config.CODE_EXTENSIONS, config.EXCLUDE_DIRS, config.EXCLUDE_FILES);
-    } else if (validatorName === 'check-css') {
-        result = validator.validate(targetDir, config.EXCLUDE_DIRS);
-    } else if (validatorName === 'check-dependencies') {
-        result = validator.validate(targetDir, config.EXCLUDE_DIRS);
-    } else if (validatorName === 'check-lines') {
-        result = validator.validate(targetDir, config.MAX_LINES, config.EXCLUDE_DIRS, config.EXCLUDE_FILES, config.HTML_TAGS, config.CODE_EXTENSIONS, config.MAX_VALUE_LINES, config.MAX_METHOD_LINES, config.MAX_CLASS_LINES);
-    }
-
-    result.name = validatorName;
-    result.duration = Date.now() - startTime;
-    results.push(result);
-
-    if (!result.passed) {
-        allPassed = false;
-    }
-}
-
-// Print results
 printResults(results, true);
 
-// Save report if enabled
 if (config.SAVE_REPORT) {
     const report = generateReport(targetDir, results);
     saveReport(report, config.REPORT_FILE);
     console.log(`📊 Report saved to ${config.REPORT_FILE}`);
-}
-
-// Exit with appropriate code
-if (!allPassed) {
-    process.exit(1);
 }

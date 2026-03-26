@@ -1,396 +1,185 @@
-const fs = require('fs');
-const path = require('path');
-const { scanDirectory, readFileSafe, getRelativePath } = require('../utility/file-utils');
-
-/**
- * Validates CSS files for various issues.
- * @param {string} targetDir - Target directory to validate
- * @param {string[]} excludeDirs - Directories to exclude
- * @returns {{passed: boolean, violations: Object, stats: Object}}
- */
-function validate(targetDir, excludeDirs) {
-    const violations = {
-        duplicateClasses: [],
-        identicalClasses: [],
-        duplicateVars: [],
-        unusedClasses: [],
-        nestedRules: [],
-        hardcodedValues: [],
-        compoundVars: [],
-        inlineStyles: []
-    };
-
-    const stats = {
-        cssFilesScanned: 0,
-        codeFilesScanned: 0,
-        classesDefined: 0,
-        classesUsed: 0,
-        rootVarsCount: 0
-    };
-
-    const { cssFiles, codeFiles } = scanDirectory(targetDir, excludeDirs);
-
-    stats.cssFilesScanned = cssFiles.length;
-    stats.codeFilesScanned = codeFiles.length;
-
-    if (cssFiles.length === 0) {
-        return { passed: true, violations, stats };
-    }
-
-    // Extract :root variables
+function extractRootVars(cssFiles) {
     const rootVars = new Map();
-    for (const cssFile of cssFiles) {
-        const cssContent = readFileSafe(cssFile);
-        if (!cssContent) continue;
-
-        const cssLines = cssContent.split('\n');
-        const relPath = getRelativePath(targetDir, cssFile);
-
+    for (const file of cssFiles) {
         let inRoot = false;
-        for (let i = 0; i < cssLines.length; i++) {
-            const line = cssLines[i];
+        file.content.split('\n').forEach((line, i) => {
             if (line.includes(':root')) inRoot = true;
             if (inRoot) {
-                const varMatch = line.match(/--([a-zA-Z0-9_-]+)\s*:\s*(.+?)\s*;/);
-                if (varMatch) {
-                    const varName = varMatch[1];
-                    const value = varMatch[2].trim();
-                    if (value.startsWith('var(')) continue;
-                    if (!rootVars.has(value)) {
-                        rootVars.set(value, []);
-                    }
-                    rootVars.get(value).push({ name: varName, line: i + 1, file: relPath, content: line.trim() });
+                const m = line.match(/--([a-zA-Z0-9_-]+)\s*:\s*(.+?)\s*;/);
+                if (m && !m[2].trim().startsWith('var(')) {
+                    if (!rootVars.has(m[2].trim())) rootVars.set(m[2].trim(), []);
+                    rootVars.get(m[2].trim()).push({ name: m[1], line: i + 1, file: file.relativePath, content: line.trim() });
                 }
                 if (line.includes('}')) inRoot = false;
             }
-        }
+        });
     }
+    return rootVars;
+}
 
-    stats.rootVarsCount = rootVars.size;
-
-    for (const [value, items] of rootVars.entries()) {
-        if (items.length > 1) {
-            violations.duplicateVars.push({ value, items });
-        }
-    }
-
-    // Extract all CSS class definitions
-    const classDefs = new Map();
-    for (const cssFile of cssFiles) {
-        const cssContent = readFileSafe(cssFile);
-        if (!cssContent) continue;
-
-        const cssLines = cssContent.split('\n');
-        const relPath = getRelativePath(targetDir, cssFile);
-
-        let currentClass = null;
-        let classContent = [];
-        let inClass = false;
-
-        for (let i = 0; i < cssLines.length; i++) {
-            const line = cssLines[i];
-
-            const classMatch = line.match(/^\s*\.([a-zA-Z_-][a-zA-Z0-9_-]*)\s*\{/);
-            if (classMatch) {
-                if (inClass && currentClass) {
-                    const entry = classDefs.get(currentClass);
-                    if (entry) {
-                        entry.content = classContent.join('\n').trim();
-                    }
-                }
-
-                currentClass = classMatch[1];
-                classContent = [line];
-                inClass = true;
-
-                if (!classDefs.has(currentClass)) {
-                    classDefs.set(currentClass, { lines: [], content: '', hasDup: false, file: relPath });
-                }
-                classDefs.get(currentClass).lines.push(i + 1);
-                classDefs.get(currentClass).file = relPath;
-                if (classDefs.get(currentClass).lines.length > 1) {
-                    classDefs.get(currentClass).hasDup = true;
-                }
-
-                if (line.includes('}')) {
-                    const entry = classDefs.get(currentClass);
-                    entry.content = classContent.join('\n').trim();
-                    inClass = false;
-                    currentClass = null;
-                }
-                continue;
+function extractClassDefs(cssFiles) {
+    const defs = new Map();
+    for (const file of cssFiles) {
+        let current = null, content = [], inClass = false;
+        file.content.split('\n').forEach((line, i) => {
+            const m = line.match(/^\s*\.([a-zA-Z_-][a-zA-Z0-9_-]*)\s*\{/);
+            if (m) {
+                if (inClass && current) { const e = defs.get(current); if (e) e.content = content.join('\n').trim(); }
+                current = m[1]; content = [line]; inClass = true;
+                if (!defs.has(current)) defs.set(current, { lines: [], content: '', hasDup: false, file: file.relativePath });
+                defs.get(current).lines.push(i + 1);
+                defs.get(current).file = file.relativePath;
+                if (defs.get(current).lines.length > 1) defs.get(current).hasDup = true;
+                if (line.includes('}')) { defs.get(current).content = content.join('\n').trim(); inClass = false; current = null; }
+                return;
             }
-
             if (inClass) {
-                classContent.push(line);
-                if (line.includes('}')) {
-                    const entry = classDefs.get(currentClass);
-                    entry.content = classContent.join('\n').trim();
-                    inClass = false;
-                    currentClass = null;
-                }
+                content.push(line);
+                if (line.includes('}')) { defs.get(current).content = content.join('\n').trim(); inClass = false; current = null; }
             }
-        }
+        });
     }
+    return defs;
+}
 
-    stats.classesDefined = classDefs.size;
-
-    // Find classes with identical content
-    const contentMap = new Map();
+function findIdenticalClasses(classDefs) {
+    const map = new Map();
     for (const [cls, data] of classDefs.entries()) {
-        const content = data.content.replace(/\s+/g, ' ').trim();
-        if (content && !content.startsWith('.')) {
-            if (!contentMap.has(content)) {
-                contentMap.set(content, []);
-            }
-            contentMap.get(content).push(cls);
+        const c = data.content.replace(/\s+/g, ' ').trim();
+        if (c && !c.startsWith('.')) {
+            if (!map.has(c)) map.set(c, []);
+            map.get(c).push(cls);
         }
     }
+    return [...map.entries()].filter(([, v]) => v.length > 1).map(([c, cls]) => ({ content: c, classes: cls }));
+}
 
-    for (const [content, classes] of contentMap.entries()) {
-        if (classes.length > 1) {
-            violations.identicalClasses.push({ content, classes });
-        }
-    }
+function findDuplicateClasses(classDefs) {
+    return [...classDefs.entries()].filter(([, d]) => d.hasDup).map(([cls, d]) => ({
+        class: cls, definitionCount: d.lines.length, file: d.file, lines: d.lines
+    }));
+}
 
-    // Find duplicate class definitions
-    for (const [cls, data] of classDefs.entries()) {
-        if (data.hasDup) {
-            violations.duplicateClasses.push({
-                class: cls,
-                definitionCount: data.lines.length,
-                file: data.file,
-                lines: data.lines
-            });
-        }
-    }
+function addClassesFromMatch(content, used) {
+    content.replace(/\$\{[^}]*\}/g, ' ').split(/\s+/).forEach(c => { if (c.trim()) used.add(c); });
+}
 
-    // Find all classes used in codebase
-    const classesUsed = new Set();
+function findClassesUsed(codeFiles) {
+    const used = new Set();
     for (const file of codeFiles) {
-        const content = readFileSafe(file);
-        if (!content) continue;
-
-        const relPath = getRelativePath(targetDir, file);
-
-        const classMatches = content.matchAll(/class="([^"]*)"/g);
-        for (const match of classMatches) {
-            const classStr = match[1].replace(/\$\{[^}]*\}/g, ' ');
-            const classes = classStr.split(/\s+/).filter(c => c.trim());
-            for (const cls of classes) {
-                classesUsed.add(cls);
-            }
-        }
-
-        const singleQuoteClassMatches = content.matchAll(/class='([^']*)'/g);
-        for (const match of singleQuoteClassMatches) {
-            const classStr = match[1].replace(/\$\{[^}]*\}/g, ' ');
-            const classes = classStr.split(/\s+/).filter(c => c.trim());
-            for (const cls of classes) {
-                classesUsed.add(cls);
-            }
-        }
-
-        const querySelectorMatches = content.matchAll(/(?:querySelector|querySelectorAll)\(['"]\.([a-zA-Z_-][a-zA-Z0-9_-]*)['"]\)/g);
-        for (const match of querySelectorMatches) {
-            classesUsed.add(match[1]);
-        }
-
-        const classListMatches = content.matchAll(/classList\.(?:add|remove|toggle)\(['"]([a-zA-Z_-][a-zA-Z0-9_-]*)['"]\)/g);
-        for (const match of classListMatches) {
-            classesUsed.add(match[1]);
-        }
-
-        // Check for helper functions like createEl('div', 'filter-group') or createEl('button', 'spoiler-btn filter-more-btn')
-        const createElMatches = content.matchAll(/(?:createEl|createElement|_el|_c|h)\s*\(\s*['"][^'"]+['"]\s*,\s*['"]([^'"]+)['"]/g);
-        for (const match of createElMatches) {
-            const classStr = match[1];
-            const classes = classStr.split(/\s+/).filter(c => c.trim());
-            for (const cls of classes) {
-                classesUsed.add(cls);
-            }
-        }
-
-        // Check for inline styles
-        const inlineStyleMatches = content.matchAll(/style=["'][^"']*["']/g);
-        for (const match of inlineStyleMatches) {
-            const lineNum = content.substring(0, match.index).split('\n').length;
-            violations.inlineStyles.push({
-                file: relPath,
-                line: lineNum,
-                content: match[0]
-            });
+        const c = file.content;
+        for (const m of c.matchAll(/class="([^"]*)"/g)) addClassesFromMatch(m[1], used);
+        for (const m of c.matchAll(/class='([^']*)'/g)) addClassesFromMatch(m[1], used);
+        for (const m of c.matchAll(/(?:querySelector|querySelectorAll)\(['"]\.([a-zA-Z_-][a-zA-Z0-9_-]*)['"]\)/g)) used.add(m[1]);
+        for (const m of c.matchAll(/classList\.(?:add|remove|toggle)\(['"]([a-zA-Z_-][a-zA-Z0-9_-]*)['"]\)/g)) used.add(m[1]);
+        for (const m of c.matchAll(/(?:createEl|createElement|_el|_c|h)\s*\(\s*['"][^'"]+['"]\s*,\s*['"]([^'"]+)['"]/g)) {
+            m[1].split(/\s+/).forEach(c => { if (c.trim()) used.add(c); });
         }
     }
+    return used;
+}
 
-    stats.classesUsed = classesUsed.size;
+function findUnusedClasses(classDefs, used) {
+    return [...classDefs.entries()].filter(([cls, d]) => !used.has(cls) && !cls.startsWith('-') && cls !== 'root')
+        .map(([cls, d]) => ({ class: cls, line: d.lines[0], file: d.file, content: d.content.split('\n')[0] }));
+}
 
-    // Find unused classes
-    for (const [cls, data] of classDefs.entries()) {
-        if (!classesUsed.has(cls) && !cls.startsWith('-') && cls !== 'root') {
-            violations.unusedClasses.push({
-                class: cls,
-                line: data.lines[0],
-                file: data.file,
-                content: data.content.split('\n')[0]
-            });
+function checkInlineStyles(codeFiles) {
+    const violations = [];
+    for (const file of codeFiles) {
+        const c = file.content;
+        for (const m of c.matchAll(/style=["'][^"']*["']/g)) {
+            violations.push({ file: file.relativePath, line: c.substring(0, m.index).split('\n').length, content: m[0] });
         }
     }
+    return violations;
+}
 
-    // Check for hardcoded values and nested rules
-    for (const cssFile of cssFiles) {
-        const cssContent = readFileSafe(cssFile);
-        if (!cssContent) continue;
+function parseCssStructure(lines) {
+    const result = [];
+    let inRoot = false, currentClass = null, depth = 0;
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes(':root')) { inRoot = true; continue; }
+        if (inRoot && line.includes('}')) { inRoot = false; continue; }
+        if (inRoot) continue;
+        const m = line.match(/^\s*\.([a-zA-Z_-][a-zA-Z0-9_-]*)/);
+        if (m && line.includes('{')) { currentClass = m[1]; depth = 1; if (line.includes('}')) { depth = 0; currentClass = null; } }
+        else {
+            for (const c of line) { if (c === '{') depth++; if (c === '}') depth--; }
+            if (depth <= 0) currentClass = null;
+        }
+        result.push({ line, i, currentClass, depth });
+    }
+    return result;
+}
 
-        const cssLines = cssContent.split('\n');
-        const relPath = getRelativePath(targetDir, cssFile);
-
-        let inRootBlock = false;
-        let currentClassName = null;
-        let braceDepth = 0;
-
-        for (let i = 0; i < cssLines.length; i++) {
-            const line = cssLines[i];
-
-            if (line.includes(':root')) {
-                inRootBlock = true;
-                continue;
-            }
-            if (inRootBlock && line.includes('}')) {
-                inRootBlock = false;
-                continue;
-            }
-            if (inRootBlock) continue;
-
-            const classMatch = line.match(/^\s*\.([a-zA-Z_-][a-zA-Z0-9_-]*)/);
-            if (classMatch && line.includes('{')) {
-                currentClassName = classMatch[1];
-                braceDepth = 1;
-                if (line.includes('}')) {
-                    braceDepth = 0;
-                    currentClassName = null;
-                }
-            } else {
-                for (const c of line) {
-                    if (c === '{') braceDepth++;
-                    if (c === '}') braceDepth--;
-                }
-                if (braceDepth <= 0) {
-                    currentClassName = null;
+function checkNestedRules(cssFiles) {
+    const violations = [];
+    for (const file of cssFiles) {
+        parseCssStructure(file.content.split('\n')).forEach(({ line, i, currentClass, depth }) => {
+            if (currentClass && depth > 0) {
+                const m = line.match(/^\s*\.([a-zA-Z_-][a-zA-Z0-9_-]*)\s*\{/);
+                if (m && m[1] !== currentClass) {
+                    violations.push({ parentClass: currentClass, nestedClass: m[1], line: i + 1, file: file.relativePath, content: line.trim() });
                 }
             }
+        });
+    }
+    return violations;
+}
 
-            if (currentClassName && braceDepth > 0) {
-                const nestedClassMatch = line.match(/^\s*\.([a-zA-Z_-][a-zA-Z0-9_-]*)\s*\{/);
-                if (nestedClassMatch && nestedClassMatch[1] !== currentClassName) {
-                    violations.nestedRules.push({
-                        parentClass: currentClassName,
-                        nestedClass: nestedClassMatch[1],
-                        line: i + 1,
-                        file: relPath,
-                        content: line.trim()
-                    });
-                }
-            }
-
-            if (line.trim().startsWith('/*') || line.trim() === '{' || line.trim() === '}') {
-                continue;
-            }
-
+function checkHardcodedValues(cssFiles) {
+    const violations = [];
+    for (const file of cssFiles) {
+        parseCssStructure(file.content.split('\n')).forEach(({ line, i, currentClass }) => {
+            if (line.trim().startsWith('/*') || line.trim() === '{' || line.trim() === '}') return;
+            const cls = currentClass || 'unknown', rel = file.relativePath, ln = i + 1, trim = line.trim();
             if (line.includes('border')) {
-                const borderMatch = line.match(/border(?:-left|-right|-top|-bottom)?\s*:\s*([^;]+)/);
-                if (borderMatch) {
-                    const borderValue = borderMatch[1].trim();
-                    const hasHardcodedColor = /#[0-9a-fA-F]{3,6}|rgba?\(|hsla?\(/i.test(borderValue);
-                    if (hasHardcodedColor) {
-                        violations.hardcodedValues.push({
-                            class: currentClassName || 'unknown',
-                            line: i + 1,
-                            file: relPath,
-                            value: borderValue,
-                            type: 'border',
-                            content: line.trim()
-                        });
-                        continue;
-                    }
+                const m = line.match(/border(?:-left|-right|-top|-bottom)?\s*:\s*([^;]+)/);
+                if (m && /#(?:[0-9a-fA-F]{3,6}|rgba?|hsla?)\(/i.test(m[1].trim())) {
+                    violations.push({ class: cls, line: ln, file: rel, value: m[1].trim(), type: 'border', content: trim });
+                    return;
                 }
             }
-
-            if (line.includes('var(--')) continue;
-
-            const hexColorMatch = line.match(/#[0-9a-fA-F]{3,6}\b/);
-            if (hexColorMatch) {
-                violations.hardcodedValues.push({
-                    class: currentClassName || 'unknown',
-                    line: i + 1,
-                    file: relPath,
-                    value: hexColorMatch[0],
-                    type: 'hex-color',
-                    content: line.trim()
-                });
-                continue;
+            if (line.includes('var(--')) return;
+            const hex = line.match(/#[0-9a-fA-F]{3,6}\b/);
+            if (hex) { violations.push({ class: cls, line: ln, file: rel, value: hex[0], type: 'hex-color', content: trim }); return; }
+            for (const m of line.matchAll(/\b(\d+\.?\d*)(rem|pt|px)\b/g)) {
+                if (!['1pt', '2pt', '4pt'].includes(m[0])) violations.push({ class: cls, line: ln, file: rel, value: m[0], type: 'size', content: trim });
             }
-
-            const sizeMatches = line.matchAll(/\b(\d+\.?\d*)(rem|pt|px)\b/g);
-            for (const sizeMatch of sizeMatches) {
-                const value = sizeMatch[0];
-                if (value === '1pt' || value === '2pt' || value === '4pt') continue;
-                violations.hardcodedValues.push({
-                    class: currentClassName || 'unknown',
-                    line: i + 1,
-                    file: relPath,
-                    value: value,
-                    type: 'size',
-                    content: line.trim()
-                });
-            }
-
-            const colorFuncMatch = line.match(/(rgba|hsla|rgb|hsl)\s*\([^)]+\)/i);
-            if (colorFuncMatch) {
-                violations.hardcodedValues.push({
-                    class: currentClassName || 'unknown',
-                    line: i + 1,
-                    file: relPath,
-                    value: colorFuncMatch[0],
-                    type: 'color-function',
-                    content: line.trim()
-                });
-            }
-
-            const props = line.split(';');
-            for (const prop of props) {
-                const match = prop.match(/^[\s]*([a-z-]+)[\s]*:[\s]*(.+)$/i);
-                if (match) {
-                    const value = match[2].trim();
-                    if (value && !value.startsWith('var(')) {
-                        violations.hardcodedValues.push({
-                            class: currentClassName || 'unknown',
-                            line: i + 1,
-                            file: relPath,
-                            value: value,
-                            type: 'hardcoded-value',
-                            content: line.trim()
-                        });
-                        break;
-                    }
+            const color = line.match(/(rgba|hsla|rgb|hsl)\s*\([^)]+\)/i);
+            if (color) violations.push({ class: cls, line: ln, file: rel, value: color[0], type: 'color-function', content: trim });
+            for (const prop of line.split(';')) {
+                const m = prop.match(/^[\s]*([a-z-]+)[\s]*:[\s]*(.+)$/i);
+                if (m && m[2].trim() && !m[2].trim().startsWith('var(')) {
+                    violations.push({ class: cls, line: ln, file: rel, value: m[2].trim(), type: 'hardcoded-value', content: trim });
+                    break;
                 }
             }
-        }
+        });
     }
+    return violations;
+}
 
-    const hasErrors = violations.duplicateClasses.length > 0 ||
-        violations.identicalClasses.length > 0 ||
-        violations.duplicateVars.length > 0 ||
-        violations.unusedClasses.length > 0 ||
-        violations.nestedRules.length > 0 ||
-        violations.hardcodedValues.length > 0 ||
-        violations.inlineStyles.length > 0;
-
-    return {
-        passed: !hasErrors,
-        violations,
-        stats
-    };
+function validate(cssFiles, codeFiles) {
+    const violations = { duplicateClasses: [], identicalClasses: [], duplicateVars: [], unusedClasses: [], nestedRules: [], hardcodedValues: [], compoundVars: [], inlineStyles: [] };
+    const stats = { cssFilesScanned: cssFiles.length, codeFilesScanned: codeFiles.length, classesDefined: 0, classesUsed: 0, rootVarsCount: 0 };
+    if (cssFiles.length === 0) return { passed: true, violations, stats };
+    const rootVars = extractRootVars(cssFiles);
+    stats.rootVarsCount = rootVars.size;
+    for (const [value, items] of rootVars.entries()) { if (items.length > 1) violations.duplicateVars.push({ value, items }); }
+    const classDefs = extractClassDefs(cssFiles);
+    stats.classesDefined = classDefs.size;
+    violations.identicalClasses = findIdenticalClasses(classDefs);
+    violations.duplicateClasses = findDuplicateClasses(classDefs);
+    const classesUsed = findClassesUsed(codeFiles);
+    stats.classesUsed = classesUsed.size;
+    violations.unusedClasses = findUnusedClasses(classDefs, classesUsed);
+    violations.inlineStyles = checkInlineStyles(codeFiles);
+    violations.nestedRules = checkNestedRules(cssFiles);
+    violations.hardcodedValues = checkHardcodedValues(cssFiles);
+    return { passed: !Object.values(violations).some(v => v.length > 0), violations, stats };
 }
 
 module.exports = { validate };

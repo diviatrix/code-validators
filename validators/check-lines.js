@@ -1,8 +1,4 @@
-const fs = require('fs');
-const path = require('path');
-const { walkCodeFiles, walkDir, readFileSafe, getRelativePath } = require('../utility/file-utils');
-
-function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, codeExtensions, maxValueLines, maxMethodLines, maxClassLines) {
+function validate(codeFiles, htmlFiles, maxLines, htmlTags, maxValueLines, maxMethodLines, maxClassLines) {
     const violations = {
         htmlInCode: [],
         codeFilesExceedingLimit: [],
@@ -12,8 +8,8 @@ function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, code
     };
 
     const stats = {
-        codeFilesChecked: 0,
-        htmlFilesChecked: 0,
+        codeFilesChecked: codeFiles.length,
+        htmlFilesChecked: htmlFiles.length,
         variablesFound: 0,
         variablesExceedingLimit: 0,
         methodsFound: 0,
@@ -21,7 +17,7 @@ function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, code
     };
 
     function findHtmlInCode(file) {
-        const code = readFileSafe(file);
+        const code = file.content;
         if (!code) return [];
 
         const issues = [];
@@ -91,12 +87,12 @@ function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, code
     }
 
     function checkVarsAndMethods(file) {
-        const code = readFileSafe(file);
+        const code = file.content;
         if (!code) return;
 
         const lines = code.split('\n');
-        const ext = path.extname(file);
-        const relPath = getRelativePath(targetDir, file);
+        const ext = file.ext;
+        const relPath = file.relativePath;
         const isJsLike = ['.js', '.ts', '.jsx', '.tsx'].includes(ext);
         const isPython = ext === '.py';
 
@@ -110,8 +106,6 @@ function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, code
         let inVar = false;
         let varBodyDepth = -1;
 
-        // Стек методов: {name, startLine, scope, bodyDepth}
-        // bodyDepth = уровень вложенности { тела функции
         let methodStack = [];
 
         for (let i = 0; i < lines.length; i++) {
@@ -121,7 +115,6 @@ function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, code
             if (isComment(trimmed)) continue;
 
             if (isJsLike || isPython) {
-                // Детектим функции
                 const cls = isClassDecl(trimmed, braceDepth);
                 if (cls) {
                     currentScope = cls.name;
@@ -172,13 +165,11 @@ function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, code
                     }
                 }
 
-                // Подсчет скобок (игнорируем внутри строк и комментариев)
                 let inString = null;
                 for (let j = 0; j < line.length; j++) {
                     const ch = line[j];
                     const prev = j > 0 ? line[j-1] : '';
 
-                    // Отслеживаем строки
                     if (!inString && (ch === '"' || ch === "'" || ch === '`')) {
                         inString = ch;
                         continue;
@@ -193,7 +184,6 @@ function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, code
                     else if (ch === ')') parenDepth--;
                     else if (ch === '{') {
                         braceDepth++;
-                        // Первая { для метода - это его тело
                         if (methodStack.length > 0) {
                             const top = methodStack[methodStack.length - 1];
                             if (top.bodyDepth === -1) {
@@ -202,13 +192,11 @@ function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, code
                         }
                         if (inVar && varBodyDepth === -1) varBodyDepth = braceDepth;
                     } else if (ch === '}') {
-                        // Закрываем методы у которых bodyDepth == текущей глубине
                         for (let m = methodStack.length - 1; m >= 0; m--) {
                             if (methodStack[m].bodyDepth === braceDepth) {
                                 const method = methodStack[m];
                                 methodStack.splice(m, 1);
                                 const cnt = i - method.startLine + 1;
-                                // Use maxClassLines for root-level methods, maxMethodLines for nested
                                 const maxLinesForMethod = method.scope === 'root' ? maxClassLines : maxMethodLines;
                                 if (cnt > maxLinesForMethod) {
                                     violations.longMethods.push({ file: relPath, name: method.name, start: method.startLine + 1, lines: cnt, scope: method.scope });
@@ -238,10 +226,8 @@ function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, code
             }
         }
 
-        // Незакрытые методы в конце файла
         for (const method of methodStack) {
             const cnt = lines.length - method.startLine;
-            // Use maxClassLines for root-level methods, maxMethodLines for nested
             const maxLinesForMethod = method.scope === 'root' ? maxClassLines : maxMethodLines;
             if (cnt > maxLinesForMethod) {
                 violations.longMethods.push({ file: relPath, name: method.name, start: method.startLine + 1, lines: cnt, scope: method.scope });
@@ -258,26 +244,22 @@ function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, code
         }
     }
 
-    const codeFiles = walkCodeFiles(targetDir, codeExtensions, excludeDirs, excludeFiles);
-    const htmlFiles = walkDir(targetDir, '.html', excludeDirs, excludeFiles);
-
-    stats.codeFilesChecked = codeFiles.length;
-    stats.htmlFilesChecked = htmlFiles.length;
-
     for (const file of codeFiles) {
-        const code = readFileSafe(file);
+        const code = file.content;
         if (!code) continue;
 
         const lines = code.split('\n').length;
-        const relPath = getRelativePath(targetDir, file);
 
         if (lines > maxLines) {
-            violations.codeFilesExceedingLimit.push({ file: relPath, lines });
+            violations.codeFilesExceedingLimit.push({ file: file.relativePath, lines });
         }
 
-        const htmlIssues = findHtmlInCode(file);
-        if (htmlIssues.length > 0) {
-            violations.htmlInCode.push({ file: relPath, issues: htmlIssues });
+        // Check for HTML in code files (skip actual .html files)
+        if (file.ext !== '.html') {
+            const htmlIssues = findHtmlInCode(file);
+            if (htmlIssues.length > 0) {
+                violations.htmlInCode.push({ file: file.relativePath, issues: htmlIssues });
+            }
         }
 
         if (maxValueLines && maxMethodLines) {
@@ -286,12 +268,12 @@ function validate(targetDir, maxLines, excludeDirs, excludeFiles, htmlTags, code
     }
 
     for (const file of htmlFiles) {
-        const code = readFileSafe(file);
+        const code = file.content;
         if (!code) continue;
 
         const lines = code.split('\n').length;
         if (lines > maxLines) {
-            violations.htmlFilesExceedingLimit.push({ file: getRelativePath(targetDir, file), lines });
+            violations.htmlFilesExceedingLimit.push({ file: file.relativePath, lines });
         }
     }
 

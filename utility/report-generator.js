@@ -1,19 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 
-/**
- * Generates a validation report from validator results.
- * @param {string} targetPath - Target directory that was validated
- * @param {Array} results - Array of validator results
- * @returns {Object}
- */
 function generateReport(targetPath, results) {
-    const allPassed = results.every(r => r.passed);
-
     return {
         timestamp: new Date().toISOString(),
         targetPath,
-        allPassed,
+        allPassed: results.every(r => r.passed),
         summary: {
             total: results.length,
             passed: results.filter(r => r.passed).length,
@@ -30,107 +22,61 @@ function generateReport(targetPath, results) {
     };
 }
 
-/**
- * Counts total violations from violations object.
- * @param {Object} violations - Violations object
- * @returns {number}
- */
-function countViolations(violations) {
-    if (!violations) return 0;
-    if (Array.isArray(violations)) return violations.length;
-
-    let count = 0;
-    for (const key of Object.keys(violations)) {
-        const value = violations[key];
-        if (Array.isArray(value)) {
-            count += value.length;
-        }
-    }
-    return count;
+function countViolations(v) {
+    if (!v) return 0;
+    if (Array.isArray(v)) return v.length;
+    return Object.keys(v).reduce((c, k) => c + (Array.isArray(v[k]) ? v[k].length : 0), 0);
 }
 
-/**
- * Saves report to JSON file.
- * @param {Object} report - Report object
- * @param {string} filePath - File path to save
- */
 function saveReport(report, filePath) {
     const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(filePath, JSON.stringify(report, null, 2));
 }
 
-/**
- * Formats validator result for console output.
- * @param {Object} result - Validator result
- * @returns {string}
- */
 function formatResult(result) {
     const status = result.passed ? '✅' : '❌';
-    const duration = `${result.duration}ms`;
-    const violationCount = countViolations(result.violations);
-
-    let output = `${status} ${result.name} (${duration})`;
-    if (violationCount > 0) {
-        output += ` - ${violationCount} violation(s)`;
-    }
-
-    return output;
+    const out = `${status} ${result.name} (${result.duration}ms)`;
+    const count = countViolations(result.violations);
+    return count > 0 ? `${out} - ${count} violation(s)` : out;
 }
 
-/**
- * Formats violations for detailed console output.
- * @param {Object} violations - Violations object
- * @param {string} validatorName - Validator name
- * @returns {string}
- */
-function formatViolations(violations, validatorName) {
-    if (!violations) return '';
-
-    const lines = [];
-
-    // Handle array violations (dependencies, classes)
-    if (Array.isArray(violations)) {
-        for (const v of violations) {
-            if (v.file && v.errors) {
-                lines.push(`  ${v.file}:`);
-                for (const error of v.errors) {
-                    lines.push(`    - ${error}`);
-                }
-            } else if (v.class && v.lines) {
-                // check-classes violations
-                const line = formatViolationItem(v, 'classesExceedingLimit');
-                if (line) lines.push(`    ${line}`);
-            } else if (v.message) {
-                lines.push(`  ${v.message}`);
-            }
+function formatArrayViolations(violations) {
+    const out = [];
+    for (const v of violations) {
+        if (v.file && v.errors) {
+            out.push(`  ${v.file}:`);
+            v.errors.forEach(e => out.push(`    - ${e}`));
+        } else if (v.class && v.lines) {
+            const line = formatViolationItem(v, 'classesExceedingLimit');
+            if (line) out.push(`    ${line}`);
+        } else if (v.message) {
+            out.push(`  ${v.message}`);
         }
-        return lines.join('\n');
     }
+    return out.join('\n');
+}
 
-    // Handle object violations (css, classes, lines)
+function formatObjectViolations(violations) {
+    const out = [];
     for (const [key, value] of Object.entries(violations)) {
         if (!Array.isArray(value) || value.length === 0) continue;
-
-        const label = formatViolationKey(key);
-        lines.push(`\n  ${label} (${value.length}):`);
-
-        for (const v of value) {
+        out.push(`\n  ${formatViolationKey(key)} (${value.length}):`);
+        value.forEach(v => {
             const line = formatViolationItem(v, key);
-            if (line) lines.push(`    ${line}`);
-        }
+            if (line) out.push(`    ${line}`);
+        });
     }
-
-    return lines.join('\n');
+    return out.join('\n');
 }
 
-/**
- * Formats violation key to readable label.
- * @param {string} key - Violation key
- * @returns {string}
- */
+function formatViolations(violations) {
+    if (!violations) return '';
+    return Array.isArray(violations)
+        ? formatArrayViolations(violations)
+        : formatObjectViolations(violations);
+}
+
 function formatViolationKey(key) {
     const labels = {
         duplicateClasses: 'Duplicate CSS class definitions',
@@ -149,12 +95,6 @@ function formatViolationKey(key) {
     return labels[key] || key;
 }
 
-/**
- * Formats individual violation item.
- * @param {Object} v - Violation item
- * @param {string} key - Violation key
- * @returns {string}
- */
 function formatViolationItem(v, key) {
     switch (key) {
         case 'duplicateClasses':
@@ -170,53 +110,35 @@ function formatViolationItem(v, key) {
         case 'hardcodedValues':
             return `${v.file}:${v.line} .${v.class}: "${v.value}" (${v.type})`;
         case 'compoundVars':
-            if (v.isDefinition) {
-                return `${v.varName}: ${v.content}`;
-            }
-            return `${v.varName} used at ${v.file}:${v.line}`;
+            return v.isDefinition
+                ? `${v.varName}: ${v.content}`
+                : `${v.varName} used at ${v.file}:${v.line}`;
         case 'inlineStyles':
-            return `${v.file}:${v.line}: ${v.content}`;
         case 'codeFilesExceedingLimit':
         case 'htmlFilesExceedingLimit':
-            return `${v.file}: ${v.lines} lines`;
+            return `${v.file}: ${v.lines || v.content} lines`.replace(' lines lines', ' lines');
         case 'htmlInCode':
             return `${v.file}: ${v.issues.map(i => `line ${i.line}: ${i.tags.join(', ')}`).join('; ')}`;
         case 'classesExceedingLimit':
             return `${v.class} in ${v.file}: ${v.lines} lines (starts at line ${v.start})`;
         default:
-            if (v.file) {
-                return `${v.file}: ${JSON.stringify(v)}`;
-            }
-            return JSON.stringify(v);
+            return v.file ? `${v.file}: ${JSON.stringify(v)}` : JSON.stringify(v);
     }
 }
 
-/**
- * Prints validation results to console.
- * @param {Array} results - Array of validator results
- * @param {boolean} showDetails - Whether to show detailed violations
- */
 function printResults(results, showDetails = true) {
-    const allPassed = results.every(r => r.passed);
-
     console.log('\n' + '='.repeat(50));
-    if (allPassed) {
-        console.log('✅ All validators passed!');
-    } else {
-        console.log('❌ Some validators failed!');
-    }
-
+    console.log(results.every(r => r.passed)
+        ? '✅ All validators passed!'
+        : '❌ Some validators failed!');
     console.log('\nValidator Results:');
     console.log('-'.repeat(50));
 
     for (const result of results) {
         console.log(formatResult(result));
-
         if (showDetails && !result.passed && result.violations) {
-            const details = formatViolations(result.violations, result.name);
-            if (details) {
-                console.log(details);
-            }
+            const details = formatViolations(result.violations);
+            if (details) console.log(details);
         }
     }
 
@@ -224,10 +146,6 @@ function printResults(results, showDetails = true) {
 }
 
 module.exports = {
-    generateReport,
-    saveReport,
-    formatResult,
-    formatViolations,
-    printResults,
-    countViolations
+    generateReport, saveReport, formatResult,
+    formatViolations, printResults, countViolations
 };

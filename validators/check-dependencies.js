@@ -1,27 +1,20 @@
 const fs = require('fs');
 const path = require('path');
-const { scanDirectory, readFileSafe, readJsonFile, getRelativePath } = require('../utility/file-utils');
 
 /**
  * Validates dependencies in package.json files.
- * @param {string} targetDir - Target directory to validate
- * @param {string[]} excludeDirs - Directories to exclude
+ * @param {Array<{path: string, relativePath: string, content: string, ext: string}>} packageJsonFiles - Loaded package.json files
  * @returns {{passed: boolean, violations: Array, stats: Object}}
  */
-function validate(targetDir, excludeDirs) {
+function validate(packageJsonFiles) {
     const violations = [];
     const stats = {
-        packageJsonFilesChecked: 0,
+        packageJsonFilesChecked: packageJsonFiles.length,
         totalDependencies: 0,
         totalDevDependencies: 0
     };
 
-    const { packageJsonFiles } = scanDirectory(targetDir, excludeDirs);
-
-    stats.packageJsonFilesChecked = packageJsonFiles.length;
-
     if (packageJsonFiles.length === 0) {
-        // No package.json files - this is not an error, just skip validation
         return {
             passed: true,
             violations: [],
@@ -29,13 +22,20 @@ function validate(targetDir, excludeDirs) {
         };
     }
 
-    for (const packageJsonPath of packageJsonFiles) {
-        const relPath = getRelativePath(targetDir, packageJsonPath);
-        const projectDir = path.dirname(packageJsonPath);
+    for (const file of packageJsonFiles) {
+        const projectDir = path.dirname(file.path);
         const nodeModulesDir = path.join(projectDir, 'node_modules');
 
-        const packageJson = readJsonFile(packageJsonPath);
-        if (!packageJson) continue;
+        let packageJson;
+        try {
+            packageJson = JSON.parse(file.content);
+        } catch (err) {
+            violations.push({
+                file: file.relativePath,
+                errors: [`Invalid JSON: ${err.message}`]
+            });
+            continue;
+        }
 
         const dependencies = {
             ...packageJson.dependencies,
@@ -70,7 +70,8 @@ function validate(targetDir, excludeDirs) {
                 if (!declaredDeps.has(module)) {
                     const modulePackagePath = path.join(nodeModulesDir, module, 'package.json');
                     if (fs.existsSync(modulePackagePath)) {
-                        const modulePackage = readJsonFile(modulePackagePath);
+                        const modulePackageContent = fs.readFileSync(modulePackagePath, 'utf8');
+                        const modulePackage = JSON.parse(modulePackageContent);
                         if (modulePackage && !modulePackage._requiredBy) {
                             errors.push(`Potentially unused dependency: ${module}`);
                         }
@@ -94,7 +95,7 @@ function validate(targetDir, excludeDirs) {
 
         if (errors.length > 0) {
             violations.push({
-                file: relPath,
+                file: file.relativePath,
                 errors
             });
         }

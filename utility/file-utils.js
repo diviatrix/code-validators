@@ -182,10 +182,90 @@ function pathExists(targetPath) {
     return fs.existsSync(targetPath);
 }
 
+/**
+ * Loads files with their contents.
+ * @param {string[]} filePaths - Array of file paths
+ * @param {string} targetDir - Target directory for relative path calculation
+ * @returns {Array<{path: string, relativePath: string, content: string, ext: string}>}
+ */
+function loadFiles(filePaths, targetDir) {
+    return filePaths
+        .map(filePath => {
+            const content = readFileSafe(filePath);
+            if (content === null) return null;
+            return {
+                path: filePath,
+                relativePath: getRelativePath(targetDir, filePath),
+                content,
+                ext: path.extname(filePath)
+            };
+        })
+        .filter(file => file !== null);
+}
+
+/**
+ * Loads code files with their contents.
+ * @param {string} dir - Directory to walk
+ * @param {string[]} extensions - File extensions to include
+ * @param {string[]} excludeDirs - Directories to exclude
+ * @param {string[]} excludeFiles - Files to exclude
+ * @returns {Array<{path: string, relativePath: string, content: string, ext: string}>}
+ */
+function loadCodeFiles(dir, extensions, excludeDirs = [], excludeFiles = []) {
+    const filePaths = walkCodeFiles(dir, extensions, excludeDirs, excludeFiles);
+    return loadFiles(filePaths, dir);
+}
+
+/**
+ * Loads CSS files with their contents.
+ * @param {string} dir - Directory to walk
+ * @param {string[]} excludeDirs - Directories to exclude
+ * @param {string[]} excludeFiles - Files to exclude
+ * @returns {Array<{path: string, relativePath: string, content: string, ext: string}>}
+ */
+function loadCssFiles(dir, excludeDirs = [], excludeFiles = []) {
+    const filePaths = walkDir(dir, '.css', excludeDirs, excludeFiles);
+    return loadFiles(filePaths, dir);
+}
+
+/**
+ * Loads HTML files with their contents.
+ * @param {string} dir - Directory to walk
+ * @param {string[]} excludeDirs - Directories to exclude
+ * @param {string[]} excludeFiles - Files to exclude
+ * @returns {Array<{path: string, relativePath: string, content: string, ext: string}>}
+ */
+function loadHtmlFiles(dir, excludeDirs = [], excludeFiles = []) {
+    const filePaths = walkDir(dir, '.html', excludeDirs, excludeFiles);
+    return loadFiles(filePaths, dir);
+}
+
+/**
+ * Scans directory and loads all files with their contents.
+ * @param {string} dir - Directory to scan
+ * @param {string[]} ignoreFolders - Folders to ignore
+ * @returns {{cssFiles: Array, codeFiles: Array, htmlFiles: Array, packageJsonFiles: Array}}
+ */
+function scanAndLoadDirectory(dir, ignoreFolders = []) {
+    const scanned = scanDirectory(dir, ignoreFolders);
+    return {
+        cssFiles: loadFiles(scanned.cssFiles, dir),
+        codeFiles: loadFiles(scanned.codeFiles, dir),
+        htmlFiles: loadFiles(scanned.htmlFiles, dir),
+        packageJsonFiles: loadFiles(scanned.packageJsonFiles, dir),
+        allFiles: loadFiles(scanned.allFiles, dir)
+    };
+}
+
 module.exports = {
     scanDirectory,
+    scanAndLoadDirectory,
     walkDir,
     walkCodeFiles,
+    loadFiles,
+    loadCodeFiles,
+    loadCssFiles,
+    loadHtmlFiles,
     readFileSafe,
     readJsonFile,
     getRelativePath,
