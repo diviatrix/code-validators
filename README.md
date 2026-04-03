@@ -27,20 +27,20 @@ Validator Results:
 ❌ check-lines (9ms) - 10 violation(s)
 
   Code files exceeding line limit (2):
-    validators\check-css.js: 444 lines
-    validators\check-lines.js: 308 lines
+    validators/check-css.js: 444 lines
+    validators/check-lines.js: 308 lines
 
   longVariables (1):
-    validators\check-css.js: {"file":"validators\\check-css.js","name":"classContent","start":87,"lines":48,"scope":"root"}
+    validators/check-css.js: {"file":"validators/check-css.js","name":"classContent","start":87,"lines":48,"scope":"root"}
 
   longMethods (7):
-    validators\check-classes.js: {"file":"validators\\check-classes.js","name":"checkFile","start":19,"lines":87,"scope":"root"}
-    validators\check-classes.js: {"file":"validators\\check-classes.js","name":"validate","start":11,"lines":109,"scope":"root"}
-    validators\check-css.js: {"file":"validators\\check-css.js","name":"validate","start":11,"lines":204,"scope":"root"}
-    validators\check-dependencies.js: {"file":"validators\\check-dependencies.js","name":"validate","start":11,"lines":98,"scope":"root"}        
-    validators\check-lines.js: {"file":"validators\\check-lines.js","name":"findHtmlInCode","start":23,"lines":32,"scope":"root"}
-    validators\check-lines.js: {"file":"validators\\check-lines.js","name":"checkVarsAndMethods","start":93,"lines":145,"scope":"root"}
-    validators\check-lines.js: {"file":"validators\\check-lines.js","name":"validate","start":5,"lines":251,"scope":"root"}
+    validators/check-classes.js: {"file":"validators/check-classes.js","name":"checkFile","start":19,"lines":87,"scope":"root"}
+    validators/check-classes.js: {"file":"validators/check-classes.js","name":"validate","start":11,"lines":109,"scope":"root"}
+    validators/check-css.js: {"file":"validators/check-css.js","name":"validate","start":11,"lines":204,"scope":"root"}
+    validators/check-dependencies.js: {"file":"validators/check-dependencies.js","name":"validate","start":11,"lines":98,"scope":"root"}        
+    validators/check-lines.js: {"file":"validators/check-lines.js","name":"findHtmlInCode","start":23,"lines":32,"scope":"root"}
+    validators/check-lines.js: {"file":"validators/check-lines.js","name":"checkVarsAndMethods","start":93,"lines":145,"scope":"root"}
+    validators/check-lines.js: {"file":"validators/check-lines.js","name":"validate","start":5,"lines":251,"scope":"root"}
 ✅ check-classes (17ms)
 ✅ check-css (0ms)
 ```
@@ -49,25 +49,25 @@ Validator Results:
 
 ## Run All Validators
 ```bash
-node validator/runall.js [directory]
+node runall.js [directory]
 ```
 
 ## Validators
 
 ### check-lines.js
 Checks that code blocks do not exceed configurable line limits:
-- Files exceeding maximum lines (default: 15 lines for code blocks)
+- Files exceeding maximum lines (default: 300 lines for files)
 - HTML tags embedded in code files
-- Variable declarations exceeding maximum lines
-- Function/method declarations exceeding maximum lines
+- Variable declarations exceeding maximum lines (default: 15)
+- Function/method declarations exceeding maximum lines (default: 25)
 ```bash
-cd database/server && node ../../validator/check-lines.js
+node validators/check-lines.js [directory]
 ```
 
 ### check-classes.js
 Checks that classes in code files (.cs, .ts, .go, .java, .cpp, .c, .hpp, .h) do not exceed 250 lines.
 ```bash
-node validator/check-classes.js [directory]
+node validators/check-classes.js [directory]
 ```
 
 ### check-css.js
@@ -81,7 +81,7 @@ Checks CSS files for issues:
 - Compound CSS variables (variables that just reference other variables)
 - Inline styles in HTML/JS
 ```bash
-node validator/check-css.js [directory]
+node validators/check-css.js [directory]
 ```
 
 ### check-dependencies.js
@@ -91,7 +91,7 @@ Validates package.json dependencies:
 - Duplicate dependencies (in both dependencies and devDependencies)
 - Missing version constraints
 ```bash
-node validator/check-dependencies.js [directory]
+node validators/check-dependencies.js [directory]
 ```
 
 
@@ -101,17 +101,17 @@ node validator/check-dependencies.js [directory]
 
 ## Configuration
 
-Configure via `config.json`:
+Configure via `config.template.json` (copy to `config.json` and customize):
 
 ```json
 {
     "TARGET_PATH": ".",
     "SAVE_REPORT": true,
     "REPORT_FILE": "data/code-quality-report.json",
-    "EXCLUDE_DIRS": ["node_modules", ".git", "tasks", "utility", "data"],
-    "EXCLUDE_FILES": ["runall.js", "eslint.config.js"],
-    "HTML_TAGS": ["html", "head", "body", "div", "span", "p", "img"],
-    "CODE_EXTENSIONS": [".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".cs", ".go"],
+    "EXCLUDE_DIRS": ["node_modules", ".git", "tasks", "data", "dist", "build", "code-validators", "validators"],
+    "EXCLUDE_FILES": ["runall.js", "eslint.config.js", ".eslintrc.js"],
+    "HTML_TAGS": ["html", "head", "body", "div", "span", "p", "a", "img", "table", "tr", "td", "th", "ul", "li", "form", "input", "button", "script", "style", "link", "meta", "header", "nav", "footer", "main", "section", "article"],
+    "CODE_EXTENSIONS": [".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".cpp", ".cc", ".cxx", ".c", ".hpp", ".h", ".cs", ".go", ".rs"],
     "MAX_LINES": 300,
     "MAX_CLASS_LINES": 250,
     "MAX_VALUE_LINES": 15,
