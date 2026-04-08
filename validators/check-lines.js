@@ -86,13 +86,18 @@ function validate(codeFiles, htmlFiles, maxLines, htmlTags, maxValueLines, maxMe
             return false;
         }
 
+        // Skip data-* attributes (technical, not user-facing text)
+        if (/\bdata-[a-z-]+=/.test(lowerLine)) {
+            return false;
+        }
+
         // Check if string looks like natural language text
         const hasTextPattern = /[а-яёa-z]{3,}/i.test(strContent) && 
                                !/^[0-9\-_]+$/.test(strContent);
         
         // Check for UI text patterns (actual user-facing text)
-        const uiTextPatterns = [/>[^<]*['"]/, /title=['"]/, /label=['"]/, /placeholder=['"]/, 
-                                /alt=['"]/, /\btext\b/i, /\bname=['"]/i];
+        const uiTextPatterns = [/>[^<]*['"]/, /title=['"]/, /label=['"]/, /placeholder=['"]/,
+                                /alt=['"]/, /\btext\b/i];
         const hasUiTextContext = uiTextPatterns.some(p => p.test(line));
 
         // Check for HTML tag content context (text between tags)
