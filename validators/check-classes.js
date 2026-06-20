@@ -110,4 +110,4 @@ function validate(codeFiles, maxClassLines) {
     };
 }
 
-module.exports = { validate };
+export { validate };

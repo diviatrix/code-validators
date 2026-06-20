@@ -380,4 +380,4 @@ function validate(codeFiles, htmlFiles, maxLines, htmlTags, maxValueLines, maxMe
     };
 }
 
-module.exports = { validate };
+export { validate };

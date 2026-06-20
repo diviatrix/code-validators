@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Validates dependencies in package.json files.
@@ -108,4 +108,4 @@ function validate(packageJsonFiles) {
     };
 }
 
-module.exports = { validate };
+export { validate };

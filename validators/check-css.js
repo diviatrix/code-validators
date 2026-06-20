@@ -182,4 +182,4 @@ function validate(cssFiles, codeFiles) {
     return { passed: !Object.values(violations).some(v => v.length > 0), violations, stats };
 }
 
-module.exports = { validate };
+export { validate };
