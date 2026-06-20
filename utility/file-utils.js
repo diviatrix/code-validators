@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Scans directory recursively for files and folders.
@@ -257,7 +257,7 @@ function scanAndLoadDirectory(dir, ignoreFolders = []) {
     };
 }
 
-module.exports = {
+export {
     scanDirectory,
     scanAndLoadDirectory,
     walkDir,

@@ -1,12 +1,16 @@
-const config = require('./config');
-const { pathExists, scanAndLoadDirectory } = require('./utility/file-utils');
-const { generateReport, saveReport, printResults } = require('./utility/report-generator');
+import config from './config.js';
+import { pathExists, scanAndLoadDirectory } from './utility/file-utils.js';
+import { generateReport, saveReport, printResults } from './utility/report-generator.js';
+import * as checkClasses from './validators/check-classes.js';
+import * as checkCss from './validators/check-css.js';
+import * as checkDependencies from './validators/check-dependencies.js';
+import * as checkLines from './validators/check-lines.js';
 
 const validators = {
-    'check-classes': require('./validators/check-classes'),
-    'check-css': require('./validators/check-css'),
-    'check-dependencies': require('./validators/check-dependencies'),
-    'check-lines': require('./validators/check-lines')
+    'check-classes': checkClasses,
+    'check-css': checkCss,
+    'check-dependencies': checkDependencies,
+    'check-lines': checkLines
 };
 
 function runValidator(name, v, files, cfg) {

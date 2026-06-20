@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 function generateReport(targetPath, results) {
     return {
@@ -148,7 +148,7 @@ function printResults(results, showDetails = true) {
     console.log('='.repeat(50));
 }
 
-module.exports = {
+export {
     generateReport, saveReport, formatResult,
     formatViolations, printResults, countViolations
 };
