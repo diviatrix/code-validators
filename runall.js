@@ -31,7 +31,7 @@ if (!pathExists(targetDir)) { console.log(`Error: Target path does not exist: ${
 console.log('🔍 Running all validators...\n');
 console.log(`Target: ${targetDir}`);
 
-const files = scanAndLoadDirectory(targetDir, config.EXCLUDE_DIRS);
+const files = scanAndLoadDirectory(targetDir, config.EXCLUDE_DIRS, config.EXCLUDE_FILES);
 const results = Object.entries(config.VALIDATORS)
     .filter(([, enabled]) => enabled)
     .map(([name]) => {

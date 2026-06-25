@@ -7,7 +7,7 @@ import path from 'path';
  * @param {string[]} ignoreFolders - Folders to ignore
  * @returns {{cssFiles: string[], codeFiles: string[], allFiles: string[]}}
  */
-function scanDirectory(dir, ignoreFolders = []) {
+function scanDirectory(dir, ignoreFolders = [], ignoreFiles = []) {
     const result = {
         cssFiles: [],
         codeFiles: [],
@@ -27,6 +27,15 @@ function scanDirectory(dir, ignoreFolders = []) {
         return false;
     }
 
+    function shouldIgnoreFile(filePath) {
+        for (const f of ignoreFiles) {
+            if (filePath.endsWith(f)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function scan(currentDir) {
         // Check if current directory should be ignored
         if (shouldIgnoreDir(currentDir, ignoreFolders)) {
@@ -38,7 +47,7 @@ function scanDirectory(dir, ignoreFolders = []) {
             const fullPath = path.join(currentDir, entry.name);
             if (entry.isDirectory()) {
                 scan(fullPath);
-            } else if (entry.isFile()) {
+            } else if (entry.isFile() && !shouldIgnoreFile(entry.name)) {
                 result.allFiles.push(fullPath);
                 if (entry.name.endsWith('.css')) {
                     result.cssFiles.push(fullPath);
@@ -244,10 +253,11 @@ function loadHtmlFiles(dir, excludeDirs = [], excludeFiles = []) {
  * Scans directory and loads all files with their contents.
  * @param {string} dir - Directory to scan
  * @param {string[]} ignoreFolders - Folders to ignore
+ * @param {string[]} ignoreFiles - Files to ignore
  * @returns {{cssFiles: Array, codeFiles: Array, htmlFiles: Array, packageJsonFiles: Array}}
  */
-function scanAndLoadDirectory(dir, ignoreFolders = []) {
-    const scanned = scanDirectory(dir, ignoreFolders);
+function scanAndLoadDirectory(dir, ignoreFolders = [], ignoreFiles = []) {
+    const scanned = scanDirectory(dir, ignoreFolders, ignoreFiles);
     return {
         cssFiles: loadFiles(scanned.cssFiles, dir),
         codeFiles: loadFiles(scanned.codeFiles, dir),
